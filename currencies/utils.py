@@ -1,17 +1,40 @@
 # -*- coding: utf-8 -*-
 
+from django.core.cache import cache
 from decimal import Decimal as D, ROUND_UP
+
 
 from .models import Currency as C
 from .conf import SESSION_KEY
 
 
+def get_factor_by_code(code):
+    currencies = cache.get("__currencies__")
+    if not currencies:
+        currencies = {}
+        for c in C.active.all():
+            currencies[c.code] = c.factor
+        cache.set("__currencies__", currencies, timeout=60)
+    try:
+        return currencies[code]
+    except KeyError:
+        cache.delete("__currencies__")
+
+
+def get_default():
+    result = cache.get("__default_currency__")
+    if not result:
+        result = C.active.default()
+        cache.set("__default_currency__", result, timeout=60)
+    return result
+
+
 def calculate(price, code, decimals=2):
-    to, default = C.active.get(code=code), C.active.default()
+    to, default = get_factor_by_code(code), get_default().factor
 
     # First, convert from the default currency to the base currency,
     # then convert from the base to the given currency
-    price = (D(price) / default.factor) * to.factor
+    price = (D(price) / default) * to
 
     return price_rounding(price, decimals=decimals)
 
@@ -20,9 +43,9 @@ def convert(amount, from_code, to_code, decimals=2):
     if from_code == to_code:
         return amount
 
-    from_, to = C.active.get(code=from_code), C.active.get(code=to_code)
+    from_, to = get_factor_by_code(from_code), get_factor_by_code(to_code)
 
-    amount = D(amount) * (to.factor / from_.factor)
+    amount = D(amount) * (to / from_)
     return price_rounding(amount, decimals=decimals)
 
 
@@ -36,7 +59,7 @@ def get_currency_code(request):
 
     # fallback to default...
     try:
-        return C.active.default().code
+        return get_default().code
     except C.DoesNotExist:
         return None  # shit happens...
 
