@@ -9,6 +9,9 @@ from .conf import SESSION_KEY
 
 
 def get_factor_by_code(code):
+    if code == get_default().code:
+        return 1
+
     currencies = cache.get("__currencies__")
     if not currencies:
         currencies = {}
