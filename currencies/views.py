@@ -3,11 +3,13 @@
 from django.utils.http import is_safe_url
 from django.http import HttpResponseRedirect
 from django.views.decorators.cache import never_cache
+from django.views.decorators.csrf import csrf_exempt
 
 from .models import Currency
 from .conf import SESSION_KEY
 
 
+@csrf_exempt
 @never_cache
 def set_currency(request):
     next, currency_code = (
